@@ -8,103 +8,86 @@ local Camera = workspace.CurrentCamera
 
 -- [[ MASTER CONFIG ]]
 local Config = {
-    Aimbot = {Enabled = false, Smooth = 0.6, Shake = 0.02, Part = "Head", Team = true, Wall = true, FOV = 80},
-    Silent = {Enabled = false, HitChance = 75, FOV = 100},
-    Trigger = {Enabled = false, Delay = 0.15},
+    Aimbot = {Enabled = false, Smooth = 0.75, Shake = 0.01, Part = "Head", Team = true, Wall = true, FOV = 70}, -- Increased Smooth for "Low Boost"
+    Silent = {Enabled = false, HitChance = 60, FOV = 90},
+    Trigger = {Enabled = false, Delay = 0.2},
     Visuals = {Chams = false, Boxes = false, Team = true, Color = Color3.fromRGB(0, 255, 255)},
-    Theme = {Accent = Color3.fromRGB(0, 255, 255)},
-    UI = {Visible = true}
+    UI = {Visible = true, Accent = Color3.fromRGB(0, 255, 255)}
 }
 
--- [[ UI CONSTRUCT ]]
+-- [[ UI ENGINE ]]
 local ScreenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 550, 0, 350)
-Main.Position = UDim2.new(0.5, -275, 0.5, -175)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-Main.BackgroundTransparency = 0.3
+Main.Size = UDim2.new(0, 580, 0, 380)
+Main.Position = UDim2.new(0.5, -290, 0.5, -190)
+Main.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+Main.BackgroundTransparency = 0.2
 Main.BorderSizePixel = 0
-Main.ClipsDescendants = true
 
 local Corner = Instance.new("UICorner", Main)
-local Blur = Instance.new("BlurEffect", game:GetService("Lighting"))
-Blur.Size = 20
+Corner.CornerRadius = UDim.new(0, 10)
 
--- Sidebar
+-- Sidebar & Navigation
 local Sidebar = Instance.new("Frame", Main)
-Sidebar.Size = UDim2.new(0, 120, 1, 0)
-Sidebar.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-Sidebar.BackgroundTransparency = 0.5
+Sidebar.Size = UDim2.new(0, 130, 1, 0)
+Sidebar.BackgroundTransparency = 0.6
+Sidebar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+
+local TabContainer = Instance.new("Frame", Main)
+TabContainer.Position = UDim2.new(0, 140, 0, 10)
+TabContainer.Size = UDim2.new(1, -150, 1, -20)
+TabContainer.BackgroundTransparency = 1
 
 local Layout = Instance.new("UIListLayout", Sidebar)
-Layout.Padding = UDim.new(0, 5)
+Layout.Padding = UDim.new(0, 2)
 
--- Content Area
-local Container = Instance.new("Frame", Main)
-Container.Position = UDim2.new(0, 130, 0, 10)
-Container.Size = UDim2.new(1, -140, 1, -20)
-Container.BackgroundTransparency = 1
+-- Tab Creator
+local function NewTab(name)
+    local Btn = Instance.new("TextButton", Sidebar)
+    Btn.Size = UDim2.new(1, 0, 0, 45)
+    Btn.BackgroundTransparency = 1
+    Btn.Text = name
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.Font = Enum.Font.GothamMedium
+    Btn.TextSize = 14
 
--- [[ TAB SYSTEM ]]
-local Tabs = {}
-local function CreateTab(name)
-    local TabBtn = Instance.new("TextButton", Sidebar)
-    TabBtn.Size = UDim2.new(1, 0, 0, 40)
-    TabBtn.BackgroundTransparency = 1
-    TabBtn.Text = name
-    TabBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-    TabBtn.Font = Enum.Font.Sans
-    TabBtn.TextSize = 14
+    local Page = Instance.new("ScrollingFrame", TabContainer)
+    Page.Size = UDim2.new(1, 0, 1, 0)
+    Page.Visible = false
+    Page.BackgroundTransparency = 1
+    Page.ScrollBarThickness = 0
     
-    local TabFrame = Instance.new("ScrollingFrame", Container)
-    TabFrame.Size = UDim2.new(1, 0, 1, 0)
-    TabFrame.BackgroundTransparency = 1
-    TabFrame.Visible = false
-    TabFrame.ScrollBarThickness = 2
-    
-    local TabList = Instance.new("UIListLayout", TabFrame)
-    TabList.Padding = UDim.new(0, 10)
-
-    TabBtn.MouseButton1Click:Connect(function()
-        for _, v in pairs(Container:GetChildren()) do v.Visible = false end
-        TabFrame.Visible = true
+    Btn.MouseButton1Click:Connect(function()
+        for _, v in pairs(TabContainer:GetChildren()) do v.Visible = false end
+        Page.Visible = true
     end)
-    
-    return TabFrame
+    return Page
 end
 
 -- Create Tabs
-local AimTab = CreateTab("Aimbot")
-local SilentTab = CreateTab("Silent Aim")
-local TrigTab = CreateTab("Triggerbot")
-local ESPTab = CreateTab("Visuals")
-local SkinTab = CreateTab("Skinchanger")
-local ConfTab = CreateTab("Settings")
+local AimTab = NewTab("Aimbot")
+local SilentTab = NewTab("Silent Aim")
+local TrigTab = NewTab("Triggerbot")
+local VisualTab = NewTab("Visuals")
+local SkinTab = NewTab("Skinchanger")
+local ConfigTab = NewTab("Settings")
 
--- [[ FUNCTIONAL HELPERS ]]
-local function IsValid(plr)
-    if not plr or not plr.Character or not plr.Character:FindFirstChild("Humanoid") then return false end
-    if plr.Character.Humanoid.Health <= 0 then return false end
-    if Config.Aimbot.Team and plr.Team == LocalPlayer.Team then return false end
-    
-    if Config.Aimbot.Wall then
-        local ray = Ray.new(Camera.CFrame.Position, (plr.Character.Head.Position - Camera.CFrame.Position).Unit * 1000)
-        local hit = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
-        if hit and not hit:IsDescendantOf(plr.Character) then return false end
-    end
-    return true
+-- [[ CORE FUNCTIONS ]]
+local function IsAlive(plr)
+    return plr and plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0
 end
 
-local function GetClosest(fov)
-    local target, closest = nil, fov
+local function GetTarget(fov)
+    local closest, target = fov, nil
     for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and IsValid(v) then
+        if v ~= LocalPlayer and IsAlive(v) then
+            if Config.Aimbot.Team and v.Team == LocalPlayer.Team then continue end
             local pos, onScreen = Camera:WorldToViewportPoint(v.Character.Head.Position)
             if onScreen then
                 local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
                 if dist < closest then
-                    target = v
                     closest = dist
+                    target = v
                 end
             end
         end
@@ -112,43 +95,33 @@ local function GetClosest(fov)
     return target
 end
 
--- [[ LOGIC CORES ]]
+-- [[ STABLE LOGIC LOOPS ]]
 
--- Silent Aim (Optimized Hook)
-local oldNC
-oldNC = hookmetamethod(game, "__namecall", function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
-    if not checkcaller() and Config.Silent.Enabled and (method == "Raycast") then
-        local target = GetClosest(Config.Silent.FOV)
-        if target and math.random(1,100) <= Config.Silent.HitChance then
-            args[2] = (target.Character.Head.Position - args[1]).Unit * 1000
-            return oldNC(self, unpack(args))
-        end
-    end
-    return oldNC(self, ...)
-end)
-
--- Main Loop (Low Intensity)
+-- Aimbot (Smooth & Safe)
 RunService.RenderStepped:Connect(function()
     if Config.Aimbot.Enabled then
-        local target = GetClosest(Config.Aimbot.FOV)
+        local target = GetTarget(Config.Aimbot.FOV)
         if target then
-            local pos = target.Character.Head.Position
-            -- Subtle movement per your request
-            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), Config.Aimbot.Smooth / 15)
+            local pos = target.Character[Config.Aimbot.Part].Position
+            -- Smoothness calculation to respect "Low Boost" request
+            local smoothAmount = Config.Aimbot.Smooth / 12
+            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), smoothAmount)
         end
     end
 end)
 
--- ESP Throttling (Prevents Pipeline Crash)
+-- Visuals (Throttled to prevent freezing)
 task.spawn(function()
-    while task.wait(0.5) do
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character then
-                local h = p.Character:FindFirstChild("Highlight") or Instance.new("Highlight", p.Character)
-                h.Enabled = Config.Visuals.Chams and IsValid(p)
-                h.FillColor = Config.Visuals.Color
+    while true do
+        task.wait(0.5) -- Updates twice a second instead of 60 times (Fixes freezing)
+        if Config.Visuals.Chams then
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local highlight = p.Character:FindFirstChild("GlassHighlight") or Instance.new("Highlight", p.Character)
+                    highlight.Name = "GlassHighlight"
+                    highlight.Enabled = IsAlive(p)
+                    highlight.FillColor = Config.Visuals.Color
+                end
             end
         end
     end
@@ -158,11 +131,10 @@ end)
 UIS.InputBegan:Connect(function(input, gpe)
     if not gpe and input.KeyCode == Enum.KeyCode.RightShift then
         Main.Visible = not Main.Visible
-        Blur.Enabled = Main.Visible
     end
 end)
 
--- Default Tab
-Container:GetChildren()[1].Visible = true
+-- Set Default Page
+TabContainer:GetChildren()[1].Visible = true
 
-print("Glass Hub V2 Loaded | Optimized & Low-Boost Ready")
+print("V3 Clean Load | Zero-Freeze Engine Active")
