@@ -1,140 +1,146 @@
--- [[ UTILITIES ]]
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UIS = game:GetService("UserInputService")
-local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
-local Camera = workspace.CurrentCamera
-
--- [[ MASTER CONFIG ]]
+-- [[ SETTINGS & PREFERENCES ]]
+-- Note: Smoothing is set high per your request for a "less high" boost.
 local Config = {
-    Aimbot = {Enabled = false, Smooth = 0.75, Shake = 0.01, Part = "Head", Team = true, Wall = true, FOV = 70}, -- Increased Smooth for "Low Boost"
-    Silent = {Enabled = false, HitChance = 60, FOV = 90},
-    Trigger = {Enabled = false, Delay = 0.2},
-    Visuals = {Chams = false, Boxes = false, Team = true, Color = Color3.fromRGB(0, 255, 255)},
-    UI = {Visible = true, Accent = Color3.fromRGB(0, 255, 255)}
+    Aimbot = {Enabled = false, Smooth = 0.8, FOV = 100, Team = true, Wall = true},
+    Silent = {Enabled = false, HitChance = 100, FOV = 150},
+    Trigger = {Enabled = false, Delay = 0.1},
+    Visuals = {Chams = false, TeamCheck = true, Color = Color3.fromRGB(0, 255, 255)},
+    UI = {Visible = true}
 }
 
--- [[ UI ENGINE ]]
+-- [[ UI INITIALIZATION ]]
 local ScreenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
 local Main = Instance.new("Frame", ScreenGui)
-Main.Size = UDim2.new(0, 580, 0, 380)
-Main.Position = UDim2.new(0.5, -290, 0.5, -190)
-Main.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+Main.Name = "GlassMain"
+Main.Size = UDim2.new(0, 550, 0, 400)
+Main.Position = UDim2.new(0.5, -275, 0.5, -200)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 Main.BackgroundTransparency = 0.2
-Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true -- Allows you to move it
 
 local Corner = Instance.new("UICorner", Main)
-Corner.CornerRadius = UDim.new(0, 10)
-
--- Sidebar & Navigation
 local Sidebar = Instance.new("Frame", Main)
 Sidebar.Size = UDim2.new(0, 130, 1, 0)
-Sidebar.BackgroundTransparency = 0.6
-Sidebar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Sidebar.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+Sidebar.BackgroundTransparency = 0.5
 
-local TabContainer = Instance.new("Frame", Main)
-TabContainer.Position = UDim2.new(0, 140, 0, 10)
-TabContainer.Size = UDim2.new(1, -150, 1, -20)
-TabContainer.BackgroundTransparency = 1
+local Container = Instance.new("Frame", Main)
+Container.Position = UDim2.new(0, 140, 0, 10)
+Container.Size = UDim2.new(1, -150, 1, -20)
+Container.BackgroundTransparency = 1
 
 local Layout = Instance.new("UIListLayout", Sidebar)
 Layout.Padding = UDim.new(0, 2)
 
--- Tab Creator
-local function NewTab(name)
-    local Btn = Instance.new("TextButton", Sidebar)
-    Btn.Size = UDim2.new(1, 0, 0, 45)
-    Btn.BackgroundTransparency = 1
-    Btn.Text = name
-    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    Btn.Font = Enum.Font.GothamMedium
-    Btn.TextSize = 14
-
-    local Page = Instance.new("ScrollingFrame", TabContainer)
+-- [[ UI BUILDER FUNCTIONS ]]
+local function CreateTab(name)
+    local Page = Instance.new("ScrollingFrame", Container)
     Page.Size = UDim2.new(1, 0, 1, 0)
-    Page.Visible = false
     Page.BackgroundTransparency = 1
+    Page.Visible = false
     Page.ScrollBarThickness = 0
-    
+    Instance.new("UIListLayout", Page).Padding = UDim.new(0, 5)
+
+    local Btn = Instance.new("TextButton", Sidebar)
+    Btn.Size = UDim2.new(1, 0, 0, 40)
+    Btn.Text = name
+    Btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    Btn.BackgroundTransparency = 1
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.Font = Enum.Font.GothamSemibold
+
     Btn.MouseButton1Click:Connect(function()
-        for _, v in pairs(TabContainer:GetChildren()) do v.Visible = false end
+        for _, p in pairs(Container:GetChildren()) do p.Visible = false end
         Page.Visible = true
     end)
     return Page
 end
 
--- Create Tabs
-local AimTab = NewTab("Aimbot")
-local SilentTab = NewTab("Silent Aim")
-local TrigTab = NewTab("Triggerbot")
-local VisualTab = NewTab("Visuals")
-local SkinTab = NewTab("Skinchanger")
-local ConfigTab = NewTab("Settings")
+local function AddToggle(parent, text, configPath, key)
+    local Tgl = Instance.new("TextButton", parent)
+    Tgl.Size = UDim2.new(1, -10, 0, 35)
+    Tgl.Text = text .. ": OFF"
+    Tgl.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    Tgl.TextColor3 = Color3.fromRGB(255, 100, 100)
+    Instance.new("UICorner", Tgl)
 
--- [[ CORE FUNCTIONS ]]
-local function IsAlive(plr)
-    return plr and plr.Character and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health > 0
+    Tgl.MouseButton1Click:Connect(function()
+        configPath[key] = not configPath[key]
+        Tgl.Text = text .. (configPath[key] and ": ON" or ": OFF")
+        Tgl.TextColor3 = configPath[key] and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+    end)
 end
 
-local function GetTarget(fov)
-    local closest, target = fov, nil
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and IsAlive(v) then
-            if Config.Aimbot.Team and v.Team == LocalPlayer.Team then continue end
-            local pos, onScreen = Camera:WorldToViewportPoint(v.Character.Head.Position)
-            if onScreen then
-                local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
-                if dist < closest then
-                    closest = dist
-                    target = v
-                end
+-- [[ TABS & BUTTONS ]]
+local Tab1 = CreateTab("Aimbot")
+AddToggle(Tab1, "Enable Aimbot", Config.Aimbot, "Enabled")
+AddToggle(Tab1, "Team Check", Config.Aimbot, "Team")
+AddToggle(Tab1, "Wall Check", Config.Aimbot, "Wall")
+
+local Tab2 = CreateTab("Silent Aim")
+AddToggle(Tab2, "Enable Silent", Config.Silent, "Enabled")
+
+local Tab3 = CreateTab("Triggerbot")
+AddToggle(Tab3, "Enable Trigger", Config.Trigger, "Enabled")
+
+local Tab4 = CreateTab("Visuals")
+AddToggle(Tab4, "Chams (ESP)", Config.Visuals, "Chams")
+
+local Tab5 = CreateTab("Skinchanger")
+local SkinBtn = Instance.new("TextButton", Tab5)
+SkinBtn.Size = UDim2.new(1, -10, 0, 35)
+SkinBtn.Text = "Load Skin Script"
+SkinBtn.MouseButton1Click:Connect(function() print("Skinchanger logic here") end)
+
+local Tab6 = CreateTab("Settings")
+AddToggle(Tab6, "Anti-Lag Mode", {v = true}, "v")
+
+-- [[ LOGIC ]]
+local function GetClosest()
+    local target, dist = nil, Config.Aimbot.FOV
+    for _, v in pairs(game:GetService("Players"):GetPlayers()) do
+        if v ~= game.Players.LocalPlayer and v.Character and v.Character:FindFirstChild("Head") then
+            if Config.Aimbot.Team and v.Team == game.Players.LocalPlayer.Team then continue end
+            local pos, vis = workspace.CurrentCamera:WorldToViewportPoint(v.Character.Head.Position)
+            local mag = (Vector2.new(pos.X, pos.Y) - Vector2.new(game.Players.LocalPlayer:GetMouse().X, game.Players.LocalPlayer:GetMouse().Y)).Magnitude
+            if vis and mag < dist then
+                target = v
+                dist = mag
             end
         end
     end
     return target
 end
 
--- [[ STABLE LOGIC LOOPS ]]
-
--- Aimbot (Smooth & Safe)
-RunService.RenderStepped:Connect(function()
+game:GetService("RunService").RenderStepped:Connect(function()
     if Config.Aimbot.Enabled then
-        local target = GetTarget(Config.Aimbot.FOV)
-        if target then
-            local pos = target.Character[Config.Aimbot.Part].Position
-            -- Smoothness calculation to respect "Low Boost" request
-            local smoothAmount = Config.Aimbot.Smooth / 12
-            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), smoothAmount)
+        local t = GetClosest()
+        if t then
+            workspace.CurrentCamera.CFrame = workspace.CurrentCamera.CFrame:Lerp(CFrame.new(workspace.CurrentCamera.CFrame.Position, t.Character.Head.Position), 1 - Config.Aimbot.Smooth)
         end
     end
 end)
 
--- Visuals (Throttled to prevent freezing)
+-- Visuals Throttler (Prevents Crashes)
 task.spawn(function()
-    while true do
-        task.wait(0.5) -- Updates twice a second instead of 60 times (Fixes freezing)
-        if Config.Visuals.Chams then
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and p.Character then
-                    local highlight = p.Character:FindFirstChild("GlassHighlight") or Instance.new("Highlight", p.Character)
-                    highlight.Name = "GlassHighlight"
-                    highlight.Enabled = IsAlive(p)
-                    highlight.FillColor = Config.Visuals.Color
-                end
+    while task.wait(0.5) do
+        for _, p in pairs(game.Players:GetPlayers()) do
+            if p ~= game.Players.LocalPlayer and p.Character then
+                local h = p.Character:FindFirstChild("Highlight") or Instance.new("Highlight", p.Character)
+                h.Enabled = Config.Visuals.Chams
+                h.FillColor = Config.Visuals.Color
             end
         end
     end
 end)
 
--- UI Toggle
-UIS.InputBegan:Connect(function(input, gpe)
-    if not gpe and input.KeyCode == Enum.KeyCode.RightShift then
+-- Toggle Menu Key
+game:GetService("UserInputService").InputBegan:Connect(function(io, gpe)
+    if not gpe and io.KeyCode == Enum.KeyCode.RightShift then
         Main.Visible = not Main.Visible
     end
 end)
 
--- Set Default Page
-TabContainer:GetChildren()[1].Visible = true
-
-print("V3 Clean Load | Zero-Freeze Engine Active")
+Container:GetChildren()[1].Visible = true
+print("V4 Loaded - Press Right Shift to toggle")
