@@ -1,0 +1,147 @@
+-- [[ UTILITIES ]]
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = workspace.CurrentCamera
+
+-- [[ MASTER CONFIG ]]
+local Config = {
+    Aimbot = {Enabled = false, Smooth = 0.35, Shake = 0.05, Part = "Head", Team = true, Wall = true, Alive = true, FOV = 100},
+    Silent = {Enabled = false, HitChance = 100, Team = true, Wall = true, Alive = true, FOV = 150, WallBang = true},
+    Trigger = {Enabled = false, Team = true, Wall = true, Alive = true, Delay = 0.1, Distance = 500},
+    Visuals = {Chams = false, Boxes = false, Health = false, HeadDot = false, Team = true, Wall = true, Color = Color3.fromRGB(0, 255, 255)},
+    UI = {Visible = true}
+}
+
+-- [[ MODERN GLASS UI FRAMEWORK ]]
+local ScreenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 650, 0, 450)
+Main.Position = UDim2.new(0.5, -325, 0.5, -225)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Main.BackgroundTransparency = 0.4 
+Main.BorderSizePixel = 0
+
+local Blur = Instance.new("BlurEffect", game:GetService("Lighting"))
+Blur.Size = 20
+local Corner = Instance.new("UICorner", Main)
+Corner.CornerRadius = UDim.new(0, 15)
+
+-- [[ UNIVERSAL TARGETING ENGINE ]]
+local function IsValid(plr, cfg)
+    if not plr or not plr.Character then return false end
+    if cfg.Alive and plr.Character:FindFirstChild("Humanoid") and plr.Character.Humanoid.Health <= 0 then return false end
+    if cfg.Team and plr.Team == LocalPlayer.Team then return false end
+    
+    local part = plr.Character:FindFirstChild("Head")
+    if not part then return false end
+    
+    if cfg.Wall then
+        local ray = Ray.new(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 1000)
+        local hit = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+        if hit and not hit:IsDescendantOf(plr.Character) then return false end
+    end
+    
+    return true
+end
+
+local function GetClosest(fov, cfg)
+    local target, closest = nil, fov
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and IsValid(v, cfg) then
+            local part = v.Character:FindFirstChild("Head")
+            if part then
+                local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+                if dist < closest then
+                    target = v
+                    closest = dist
+                end
+            end
+        end
+    end
+    return target
+end
+
+-- [[ SILENT AIM & RAGE MODE HOOK ]]
+local oldNC
+oldNC = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    if Config.Silent.Enabled and (method == "Raycast" or method == "FindPartOnRay") then
+        -- Silent Aim uses its own Wall/Team/Alive checks
+        local target = GetClosest(Config.Silent.FOV, Config.Silent)
+        if target and math.random(1,100) <= Config.Silent.HitChance then
+            local tPos = target.Character.Head.Position
+            if method == "Raycast" then
+                args[2] = (tPos - args[1]).Unit * 1000 -- Curving bullet logic
+            end
+        end
+    end
+    return oldNC(self, unpack(args))
+end)
+
+-- [[ MAIN EXECUTION LOOP ]]
+RunService.RenderStepped:Connect(function()
+    -- 1. Aimbot Logic (Low-Intensity Smoothness)
+    if Config.Aimbot.Enabled then
+        local target = GetClosest(Config.Aimbot.FOV, Config.Aimbot)
+        if target then
+            local pos = target.Character.Head.Position
+            local shake = Vector3.new(math.random(-1,1), math.random(-1,1), math.random(-1,1)) * Config.Aimbot.Shake
+            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos + shake), Config.Aimbot.Smooth / 8)
+        end
+    end
+
+    -- 2. Triggerbot Logic
+    if Config.Trigger.Enabled then
+        local targetPlr = Players:GetPlayerFromCharacter(Mouse.Target and Mouse.Target.Parent)
+        if targetPlr and IsValid(targetPlr, Config.Trigger) then
+            task.wait(Config.Trigger.Delay)
+            mouse1click()
+        end
+    end
+
+    -- 3. Visuals (ESP/Chams/HeadDot)
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local isVisible = IsValid(p, Config.Visuals)
+            
+            -- Chams Logic
+            local highlight = p.Character:FindFirstChild("Highlight") or Instance.new("Highlight", p.Character)
+            highlight.Enabled = Config.Visuals.Chams and isVisible
+            highlight.FillColor = Config.Visuals.Color
+
+            -- Head Dot Logic
+            local head = p.Character:FindFirstChild("Head")
+            if head and Config.Visuals.HeadDot then
+                local dot = head:FindFirstChild("Dot") or Instance.new("BillboardGui", head)
+                dot.Name = "Dot"
+                dot.Size = UDim2.new(0, 4, 0, 4)
+                dot.AlwaysOnTop = true
+                local f = dot:FindFirstChild("F") or Instance.new("Frame", dot)
+                f.Name = "F"; f.Size = UDim2.new(1,0,1,0); f.BackgroundColor3 = Config.Visuals.Color
+                dot.Enabled = isVisible
+            end
+        end
+    end
+end)
+
+-- [[ UI TOGGLE & SKINCHANGER ]]
+UIS.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.RightShift then
+        Config.UI.Visible = not Config.UI.Visible
+        Main.Visible = Config.UI.Visible
+        Blur.Enabled = Config.UI.Visible
+    end
+end)
+
+-- Skinchanger Loaders
+local function LoadSkins(url)
+    loadstring(game:HttpGet(url))()
+end
+
+print("Rivals Glass Hub Loaded | Right Shift to Hide | All Checks Integrated")
