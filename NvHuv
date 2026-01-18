@@ -1,4 +1,4 @@
--- [[ UTILITIES & CONFIG ]]
+-- [[ UTILITIES ]]
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
@@ -6,12 +6,13 @@ local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 local Camera = workspace.CurrentCamera
 
+-- [[ MASTER CONFIG ]]
 local Config = {
-    Aimbot = {Enabled = false, Smooth = 0.8, Shake = 0.05, Part = "Head", Team = true, Wall = true, Alive = true, FOV = 100, ShowFOV = false},
+    Aimbot = {Enabled = false, Smooth = 0.85, Shake = 0.02, Part = "Head", Team = true, Wall = true, Alive = true, FOV = 100, ShowFOV = false},
     Silent = {Enabled = false, HitChance = 80, Part = "Head", Team = true, Wall = true, Alive = true, FOV = 150, ShowFOV = false},
     Trigger = {Enabled = false, Team = true, Wall = true, Alive = true, Delay = 0.1, Distance = 500, HitChance = 100},
-    Visuals = {Chams = false, Boxes = false, Health = false, HeadDot = false, Team = true, Color = Color3.fromRGB(0, 255, 255), DotSize = 4},
-    UI = {Visible = true, Theme = "Dark Glass"}
+    Visuals = {Chams = false, Boxes = false, Health = false, HeadDot = false, Team = true, Color = Color3.fromRGB(0, 255, 255), DotSize = 4, DotPart = "Head"},
+    UI = {Visible = true}
 }
 
 -- [[ UI FRAMEWORK ]]
@@ -19,17 +20,19 @@ local ScreenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
 local Main = Instance.new("Frame", ScreenGui)
 Main.Size = UDim2.new(0, 750, 0, 500)
 Main.Position = UDim2.new(0.5, -375, 0.5, -250)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Main.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
 Main.BackgroundTransparency = 0.2
 Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
 
 local Corner = Instance.new("UICorner", Main)
-Corner.CornerRadius = UDim.new(0, 15)
+Corner.CornerRadius = UDim.new(0, 12)
 
 local Sidebar = Instance.new("Frame", Main)
 Sidebar.Size = UDim2.new(0, 180, 1, 0)
-Sidebar.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-Sidebar.BackgroundTransparency = 0.5
+Sidebar.BackgroundColor3 = Color3.fromRGB(8, 8, 8)
+Sidebar.BackgroundTransparency = 0.4
 
 local Container = Instance.new("Frame", Main)
 Container.Position = UDim2.new(0, 190, 0, 10)
@@ -39,42 +42,7 @@ Container.BackgroundTransparency = 1
 local Layout = Instance.new("UIListLayout", Sidebar)
 Layout.Padding = UDim.new(0, 5)
 
--- [[ FEATURE FUNCTIONS ]]
-local function IsValid(plr, cfg)
-    if not plr or not plr.Character or not plr.Character:FindFirstChild("Humanoid") then return false end
-    if cfg.Alive and plr.Character.Humanoid.Health <= 0 then return false end
-    if cfg.Team and plr.Team == LocalPlayer.Team then return false end
-    
-    local part = plr.Character:FindFirstChild(cfg.Part or "Head")
-    if not part then return false end
-    
-    if cfg.Wall then
-        local ray = Ray.new(Camera.CFrame.Position, (part.Position - Camera.CFrame.Position).Unit * 1000)
-        local hit = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
-        if hit and not hit:IsDescendantOf(plr.Character) then return false end
-    end
-    return true
-end
-
-local function GetClosest(fov, cfg)
-    local target, closest = nil, fov
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and IsValid(v, cfg) then
-            local part = v.Character:FindFirstChild(cfg.Part or "Head")
-            if part then
-                local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
-                if dist < closest then
-                    target = v
-                    closest = dist
-                end
-            end
-        end
-    end
-    return target
-end
-
--- [[ TABS GENERATOR ]]
+-- [[ BUILDER FUNCTIONS ]]
 local function CreateTab(name)
     local Page = Instance.new("ScrollingFrame", Container)
     Page.Size = UDim2.new(1, 0, 1, 0)
@@ -89,7 +57,7 @@ local function CreateTab(name)
     Btn.Font = Enum.Font.GothamBold
     Btn.TextSize = 16
     Btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.TextColor3 = Color3.fromRGB(200, 200, 200)
 
     Btn.MouseButton1Click:Connect(function()
         for _, p in pairs(Container:GetChildren()) do p.Visible = false end
@@ -98,66 +66,108 @@ local function CreateTab(name)
     return Page
 end
 
--- Create Pages
-local AimPage = CreateTab("Aimbot")
-local SilentPage = CreateTab("Silent Aim")
-local TrigPage = CreateTab("Triggerbot")
-local VisualPage = CreateTab("Visuals")
-local SkinPage = CreateTab("Skinchanger")
-local ConfigPage = CreateTab("Configs/Themes")
+local function AddToggle(parent, text, cfg, key)
+    local Tgl = Instance.new("TextButton", parent)
+    Tgl.Size = UDim2.new(1, 0, 0, 40)
+    Tgl.Text = text .. ": OFF"
+    Tgl.Font = Enum.Font.GothamBold
+    Tgl.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    Tgl.TextColor3 = Color3.fromRGB(255, 80, 80)
+    Instance.new("UICorner", Tgl)
 
--- [[ SKINCHANGER LOGIC ]]
-local function LoadSkins()
+    Tgl.MouseButton1Click:Connect(function()
+        cfg[key] = not cfg[key]
+        Tgl.Text = text .. (cfg[key] and ": ON" or ": OFF")
+        Tgl.TextColor3 = cfg[key] and Color3.fromRGB(80, 255, 80) or Color3.fromRGB(255, 80, 80)
+    end)
+end
+
+-- [[ TABS INITIALIZATION ]]
+local AimTab = CreateTab("Aimbot")
+AddToggle(AimTab, "Enable Aimbot", Config.Aimbot, "Enabled")
+-- Smoothness/Part controls would go here
+
+local SilentTab = CreateTab("Silent Aim")
+AddToggle(SilentTab, "Enable Silent", Config.Silent, "Enabled")
+
+local SkinTab = CreateTab("Skinchanger")
+local SkinBtn = Instance.new("TextButton", SkinTab)
+SkinBtn.Size = UDim2.new(1, 0, 0, 40)
+SkinBtn.Text = "Load Platform Skins"
+SkinBtn.MouseButton1Click:Connect(function()
     if UIS.TouchEnabled and not UIS.KeyboardEnabled then
         loadstring(game:HttpGet("https://pastebin.com/raw/9qnfFYny"))() -- Mobile
     else
         loadstring(game:HttpGet("https://pastebin.com/raw/y5cw6uYV"))() -- PC
     end
+end)
+
+-- [[ TARGETING LOGIC ]]
+local function IsValid(plr, cfg)
+    if not plr or not plr.Character or not plr.Character:FindFirstChild("Humanoid") then return false end
+    if cfg.Alive and plr.Character.Humanoid.Health <= 0 then return false end
+    if cfg.Team and plr.Team == LocalPlayer.Team then return false end
+    if cfg.Wall then
+        local targetPart = plr.Character:FindFirstChild(cfg.Part)
+        if targetPart then
+            local ray = Ray.new(Camera.CFrame.Position, (targetPart.Position - Camera.CFrame.Position).Unit * 1000)
+            local hit = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+            if hit and not hit:IsDescendantOf(plr.Character) then return false end
+        end
+    end
+    return true
 end
 
-local SkinBtn = Instance.new("TextButton", SkinPage)
-SkinBtn.Size = UDim2.new(1, 0, 0, 50)
-SkinBtn.Text = "Execute Skinchanger"
-SkinBtn.MouseButton1Click:Connect(LoadSkins)
+local function GetClosest(fov, cfg)
+    local target, closest = nil, fov
+    for _, v in pairs(Players:GetPlayers()) do
+        if v ~= LocalPlayer and IsValid(v, cfg) then
+            local part = v.Character:FindFirstChild(cfg.Part)
+            if part then
+                local pos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                local dist = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+                if dist < closest then
+                    target = v
+                    closest = dist
+                end
+            end
+        end
+    end
+    return target
+end
 
--- [[ MAIN LOOP ]]
+-- [[ COMBAT LOOPS ]]
 RunService.RenderStepped:Connect(function()
-    -- Aimbot Logic (Low-Intensity Smoothness)
     if Config.Aimbot.Enabled then
         local target = GetClosest(Config.Aimbot.FOV, Config.Aimbot)
         if target then
             local pos = target.Character[Config.Aimbot.Part].Position
-            local shake = Vector3.new(math.random(-1,1), math.random(-1,1), math.random(-1,1)) * Config.Aimbot.Shake
-            -- Adjusted Lerp for "less high" boosting
-            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos + shake), (1 - Config.Aimbot.Smooth) / 5)
+            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, pos), (1 - Config.Aimbot.Smooth) / 5)
         end
     end
 end)
 
--- Silent Aim Hook (Look-At Logic Included)
+-- Silent Aim Hook with "Look-At" Simulation
 local oldNC
 oldNC = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
     local args = {...}
-    if not checkcaller() and Config.Silent.Enabled and (method == "Raycast" or method == "FindPartOnRay") then
+    if not checkcaller() and Config.Silent.Enabled and (method == "Raycast") then
         local target = GetClosest(Config.Silent.FOV, Config.Silent)
-        if target and math.random(1,100) <= Config.Silent.HitChance then
-            local tPos = target.Character[Config.Silent.Part].Position
-            if method == "Raycast" then
-                args[2] = (tPos - args[1]).Unit * 1000
-                return oldNC(self, unpack(args))
-            end
+        if target and math.random(1, 100) <= Config.Silent.HitChance then
+            args[2] = (target.Character[Config.Silent.Part].Position - args[1]).Unit * 1000
+            return oldNC(self, unpack(args))
         end
     end
     return oldNC(self, ...)
 end)
 
--- Toggle
-UIS.InputBegan:Connect(function(input, gpe)
-    if not gpe and input.KeyCode == Enum.KeyCode.RightShift then
+-- Toggle Menu
+UIS.InputBegan:Connect(function(io, gpe)
+    if not gpe and io.KeyCode == Enum.KeyCode.RightShift then
         Main.Visible = not Main.Visible
     end
 end)
 
 Container:GetChildren()[1].Visible = true
-print("Glass Premium Loaded | V7 Stable")
+print("V8 Glass Hub Loaded | Right Shift to Toggle")
